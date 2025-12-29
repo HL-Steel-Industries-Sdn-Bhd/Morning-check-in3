@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Morning Check-In System</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        
+        .greeting {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+        
+        .scanner-container {
+            width: 100%;
+            height: 300px;
+            border: 2px dashed #ddd;
+            border-radius: 15px;
+            margin: 20px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #reader {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 500;
+            display: none;
+        }
+        
+        .success {
+            background-color: rgba(76, 175, 80, 0.1);
+            color: #2E7D32;
+            border: 2px solid #4CAF50;
+            display: block;
+        }
+        
+        .error {
+            background-color: rgba(244, 67, 54, 0.1);
+            color: #D32F2F;
+            border: 2px solid #F44336;
+            display: block;
+        }
+        
+        .loading {
+            display: none;
+            margin: 20px 0;
+        }
+        
+        .instructions {
+            color: #666;
+            font-size: 14px;
+            margin-top: 15px;
+            line-height: 1.5;
+        }
+        
+        .scan-area {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            border: 3px solid #667eea;
+            border-radius: 10px;
+            animation: pulse 2s infinite;
+            pointer-events: none;
+        }
+        
+        /* 手动输入模式样式 */
+        .manual-input {
+            display: none;
+            margin: 20px 0;
+            width: 100%;
+        }
+        
+        .code-input-container {
+            margin: 20px 0;
+        }
+        
+        .code-input {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.5rem;
+            text-align: center;
+            letter-spacing: 10px;
+            border: 3px solid #667eea;
+            border-radius: 10px;
+            text-transform: uppercase;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        
+        .mode-switch {
+            margin: 15px 0;
+            color: #667eea;
+            text-decoration: underline;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+            width: 100%;
+            transition: transform 0.2s;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+        
+        @keyframes pulse {
+            0% { border-color: #667eea; }
+            50% { border-color: #764ba2; }
+            100% { border-color: #667eea; }
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .greeting {
+                font-size: 24px;
+            }
+            
+            .scanner-container {
+                height: 250px;
+            }
+            
+            .scan-area {
+                width: 150px;
+                height: 150px;
+            }
+            
+            .code-input {
+                font-size: 1.2rem;
+                letter-spacing: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 显示用户名 -->
+        <div class="greeting" id="greeting">Good Morning!</div>
+        
+        <!-- 扫码区域 -->
+        <div class="scanner-container">
+            <div id="reader"></div>
+            <div class="scan-area"></div>
+        </div>
+        
+        <!-- 手动输入区域 -->
+        <div class="manual-input" id="manualInput">
+            <div class="code-input-container">
+                <input type="text" 
+                       class="code-input" 
+                       id="codeInput" 
+                       maxlength="4" 
+                       placeholder="ABCD"
+                       pattern="[A-Z]{4}"
+                       title="Please enter exactly 4 uppercase letters">
+            </div>
+            <button class="submit-btn" id="submitCodeBtn">Submit Verification Code</button>
+            <div class="mode-switch" id="switchToScanner">← Switch to QR Scanner</div>
+        </div>
+        
+        <!-- 状态显示 -->
+        <div class="status" id="status"></div>
+        
+        <!-- 加载动画 -->
+        <div class="loading" id="loading">
+            <div style="display:flex;justify-content:center;">
+                <div style="width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #667eea;border-radius:50%;animation:spin 1s linear infinite;"></div>
+            </div>
+            <p style="margin-top:10px;">Submitting attendance...</p>
+        </div>
+        
+        <!-- 说明 -->
+        <div class="instructions" id="instructions">
+            Please scan the official Morning Check-In QR code.<br>
+            Make sure you're in a well-lit area.
+        </div>
+        
+        <!-- 模式切换链接 -->
+        <div class="mode-switch" id="switchToManual">Camera not working? Use manual code entry →</div>
+    </div>
+
+    <!-- 隐藏iframe用于提交数据 -->
+    <iframe name="hiddenFrame" style="display:none;"></iframe>
+
+    <script>
+        // ==================== 初始化 ====================
+        let scanner = null;
+        const greetingEl = document.getElementById("greeting");
+        const statusEl = document.getElementById("status");
+        const loadingEl = document.getElementById("loading");
+        const manualInputEl = document.getElementById("manualInput");
+        const codeInputEl = document.getElementById("codeInput");
+        const submitCodeBtn = document.getElementById("submitCodeBtn");
+        const scannerContainer = document.querySelector('.scanner-container');
+        const instructionsEl = document.getElementById("instructions");
+        const switchToManualEl = document.getElementById("switchToManual");
+        const switchToScannerEl = document.getElementById("switchToScanner");
+        
+        // 当前模式：'scanner' 或 'manual'
+        let currentMode = 'scanner';
+        
+        // ==================== 1. 获取用户名 ====================
+        const urlParams = new URLSearchParams(window.location.search);
+        let userName = urlParams.get('user');
+        
+        if (!userName) {
+            userName = "Guest";
+            statusEl.textContent = "No user specified in URL";
+            statusEl.className = "status error";
+            statusEl.style.display = "block";
+        }
+        
+        greetingEl.textContent = `Good Morning, ${userName}!`;
+        
+        // ==================== 2. 生成验证码（与html1相同的算法） ====================
+        function generateVerificationCode() {
+            const now = new Date();
+            
+            // 获取日期：日(29)月(12)，格式：2912
+            const month = (now.getMonth() + 1).toString().padStart(2, '0'); // 12
+            const day = now.getDate().toString().padStart(2, '0'); // 29
+            
+            // 格式：日 + 月，例如 2912
+            const dateStr = day + month; // "2912"
+            
+            // 字母映射：0=b, 1=a, 2=c, 3=k, 4=g, 5=r, 6=o, 7=u, 8=n, 9=d
+            const alphabetMap = {
+                '0': 'b', '1': 'a', '2': 'c', '3': 'k', 
+                '4': 'g', '5': 'r', '6': 'o', '7': 'u', 
+                '8': 'n', '9': 'd'
+            };
+            
+            // 根据日期数字生成原始字母
+            let originalLetters = '';
+            for (let i = 0; i < 4; i++) {
+                originalLetters += alphabetMap[dateStr[i]] || 'a';
+            }
+            
+            // 排列方式映射
+            const arrangementMap = {
+                '0': [3,4,2,1], '1': [1,3,4,2], '2': [4,2,1,3], '3': [2,4,3,1],
+                '4': [3,1,2,4], '5': [2,1,4,3], '6': [4,3,1,2], '7': [1,3,2,4],
+                '8': [3,4,1,2], '9': [1,2,4,3]
+            };
+            
+            // 获取日的个位数
+            const dayLastDigit = now.getDate() % 10; // 29 % 10 = 9
+            
+            // 获取排列方式
+            const arrangement = arrangementMap[dayLastDigit.toString()] || [1,2,3,4];
+            
+            // 重新排列字母
+            let finalCode = '';
+            for (let i = 0; i < 4; i++) {
+                finalCode += originalLetters[arrangement[i] - 1];
+            }
+            
+            return finalCode.toUpperCase();
+        }
+        
+        // 测试函数：生成未来5天的验证码
+        function testFutureCodes() {
+            console.log("HTML2 - 未来5天验证码测试：");
+            for (let i = 0; i < 5; i++) {
+                const testDate = new Date();
+                testDate.setDate(testDate.getDate() + i);
+                
+                const month = (testDate.getMonth() + 1).toString().padStart(2, '0');
+                const day = testDate.getDate().toString().padStart(2, '0');
+                const dateStr = day + month;
+                
+                const alphabetMap = {
+                    '0': 'b', '1': 'a', '2': 'c', '3': 'k', 
+                    '4': 'g', '5': 'r', '6': 'o', '7': 'u', 
+                    '8': 'n', '9': 'd'
+                };
+                
+                let originalLetters = '';
+                for (let j = 0; j < 4; j++) {
+                    originalLetters += alphabetMap[dateStr[j]] || 'a';
+                }
+                
+                const arrangementMap = {
+                    '0': [3,4,2,1], '1': [1,3,4,2], '2': [4,2,1,3], '3': [2,4,3,1],
+                    '4': [3,1,2,4], '5': [2,1,4,3], '6': [4,3,1,2], '7': [1,3,2,4],
+                    '8': [3,4,1,2], '9': [1,2,4,3]
+                };
+                
+                const dayLastDigit = testDate.getDate() % 10;
+                const arrangement = arrangementMap[dayLastDigit.toString()] || [1,2,3,4];
+                
+                let finalCode = '';
+                for (let k = 0; k < 4; k++) {
+                    finalCode += originalLetters[arrangement[k] - 1];
+                }
+                
+                console.log(`${testDate.toISOString().split('T')[0]} (${dateStr}): 原始=${originalLetters.toUpperCase()}, 排列=${arrangement.join('')}, 最终=${finalCode.toUpperCase()}`);
+            }
+        }
+        
+        // 运行测试
+        testFutureCodes();
+        
+        // ==================== 3. 验证输入的代码 ====================
+        function validateVerificationCode(inputCode) {
+            const correctCode = generateVerificationCode();
+            return inputCode === correctCode;
+        }
+        
+        // ==================== 4. 手动输入处理 ====================
+        function setupManualInput() {
+            // 限制输入为字母，自动转大写
+            codeInputEl.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/[^a-zA-Z]/g, '');
+                value = value.toUpperCase();
+                e.target.value = value;
+            });
+            
+            // 提交按钮点击事件
+            submitCodeBtn.addEventListener('click', function() {
+                const inputCode = codeInputEl.value.trim();
+                
+                if (inputCode.length !== 4) {
+                    statusEl.textContent = "Please enter exactly 4 letters";
+                    statusEl.className = "status error";
+                    statusEl.style.display = "block";
+                    setTimeout(() => { statusEl.style.display = "none"; }, 3000);
+                    return;
+                }
+                
+                if (validateVerificationCode(inputCode)) {
+                    // 验证成功
+                    statusEl.textContent = "Code Verified Successfully!";
+                    statusEl.className = "status success";
+                    statusEl.style.display = "block";
+                    
+                    handleSuccessfulCheckIn(userName);
+                } else {
+                    // 验证失败
+                    statusEl.textContent = "Invalid Verification Code";
+                    statusEl.className = "status error";
+                    statusEl.style.display = "block";
+                    setTimeout(() => { statusEl.style.display = "none"; }, 3000);
+                }
+            });
+            
+            // 按回车键提交
+            codeInputEl.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    submitCodeBtn.click();
+                }
+            });
+        }
+        
+        // ==================== 5. 启动扫描器 ====================
+        const startScanner = () => {
+            if (!scanner) {
+                scanner = new Html5Qrcode("reader");
+            }
+            
+            const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+                console.log("Scanned:", decodedText);
+                
+                // 检查时间戳是否在1分钟内
+                const scannedTs = Math.round(Number(decodedText) / Math.PI);
+                
+                if (isNaN(scannedTs)) {
+                    statusEl.textContent = "Invalid QR Code";
+                    statusEl.className = "status error";
+                    statusEl.style.display = "block";
+                    setTimeout(() => { statusEl.style.display = "none"; }, 3000);
+                    return;
+                }
+                
+                const now = Date.now();
+                const diff = Math.abs(now - scannedTs);
+                
+                if (diff < 60000) { // 1分钟 = 60000毫秒
+                    // 有效二维码 → 提交数据
+                    scanner.stop().then(() => {
+                        handleSuccessfulCheckIn(userName);
+                    }).catch(err => {
+                        console.warn("Failed to stop scanner:", err);
+                        handleSuccessfulCheckIn(userName);
+                    });
+                } else {
+                    // 二维码过期
+                    statusEl.textContent = "QR Code Expired";
+                    statusEl.className = "status error";
+                    statusEl.style.display = "block";
+                    setTimeout(() => { statusEl.style.display = "none"; }, 3000);
+                }
+            };
+            
+            scanner.start(
+                { facingMode: "environment" },
+                { 
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                qrCodeSuccessCallback,
+                (errorMessage) => {
+                    // 摄像头启动失败，自动切换到手动模式
+                    console.error("Camera failed:", errorMessage);
+                    if (currentMode === 'scanner') {
+                        switchToManualMode();
+                        statusEl.textContent = "Cannot access camera. Please use manual code entry.";
+                        statusEl.className = "status error";
+                        statusEl.style.display = "block";
+                        setTimeout(() => { statusEl.style.display = "none"; }, 5000);
+                    }
+                }
+            ).catch(err => {
+                console.error("Failed to start camera:", err);
+                if (currentMode === 'scanner') {
+                    switchToManualMode();
+                    statusEl.textContent = "Cannot access camera. Please use manual code entry.";
+                    statusEl.className = "status error";
+                    statusEl.style.display = "block";
+                    setTimeout(() => { statusEl.style.display = "none"; }, 5000);
+                }
+            });
+        };
+        
+        // ==================== 6. 处理成功签到 ====================
+        const handleSuccessfulCheckIn = (user) => {
+            // 显示成功消息
+            statusEl.textContent = "Successfully Checked In!";
+            statusEl.className = "status success";
+            statusEl.style.display = "block";
+            
+            // 显示加载动画
+            loadingEl.style.display = "block";
+            
+            // 获取当前时间
+            const now = new Date();
+            const timestamp = now.toISOString();
+            
+            // 提交数据到Google Sheets
+            submitToGoogleSheet(user, timestamp);
+        };
+        
+        // ==================== 7. 提交数据到Google Sheets ====================
+        const submitToGoogleSheet = (user, timestamp) => {
+            const GAS_URL = "https://script.google.com/macros/s/AKfycbzYYtRWfHBuhQucYsrxYZMo35yn2ouMvmdJiByvw0jqV3BdtEEE_K1D3p5FAsme93Z1Qw/exec";
+            
+            const form = document.createElement('form');
+            form.method = 'GET';
+            form.action = GAS_URL;
+            form.target = 'hiddenFrame';
+            
+            const userInput = document.createElement('input');
+            userInput.type = 'hidden';
+            userInput.name = 'user';
+            userInput.value = user;
+            
+            const timeInput = document.createElement('input');
+            timeInput.type = 'hidden';
+            timeInput.name = 'timestamp';
+            timeInput.value = timestamp;
+            
+            form.appendChild(userInput);
+            form.appendChild(timeInput);
+            document.body.appendChild(form);
+            
+            form.submit();
+            
+            setTimeout(() => {
+                loadingEl.style.display = "none";
+            }, 5000);
+        };
+        
+        // ==================== 8. 模式切换功能 ====================
+        function switchToManualMode() {
+            currentMode = 'manual';
+            
+            // 停止扫描器
+            if (scanner && scanner.isScanning) {
+                scanner.stop().catch(err => console.warn("Error stopping scanner:", err));
+            }
+            
+            // 切换界面
+            scannerContainer.style.display = 'none';
+            manualInputEl.style.display = 'block';
+            switchToManualEl.style.display = 'none';
+            switchToScannerEl.style.display = 'block';
+            instructionsEl.textContent = "Enter the 4-letter code displayed on the QR code screen.";
+            
+            // 聚焦输入框
+            setTimeout(() => {
+                codeInputEl.focus();
+            }, 100);
+        }
+        
+        function switchToScannerMode() {
+            currentMode = 'scanner';
+            
+            // 切换界面
+            scannerContainer.style.display = 'block';
+            manualInputEl.style.display = 'none';
+            switchToManualEl.style.display = 'block';
+            switchToScannerEl.style.display = 'none';
+            instructionsEl.textContent = "Please scan the official Morning Check-In QR code. Make sure you're in a well-lit area.";
+            
+            // 清空输入框
+            codeInputEl.value = '';
+            
+            // 启动扫描器
+            startScanner();
+        }
+        
+        // ==================== 9. 事件监听器 ====================
+        switchToManualEl.addEventListener('click', switchToManualMode);
+        switchToScannerEl.addEventListener('click', switchToScannerMode);
+        
+        // ==================== 10. 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            setupManualInput();
+            
+            // 先尝试启动扫描器
+            setTimeout(() => {
+                startScanner();
+            }, 500);
+        });
+        
+        // 添加一个简单的旋转动画
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
